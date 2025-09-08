@@ -1,0 +1,3239 @@
+version: 2
+
+models:
+  - name: api__intermediate__orders
+    description: ' '
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+    config:
+      tags: ['api' , 'analytics']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__abandoned_carts
+    description: >
+      The `api__analytics__abandoned_carts` tracks information about shopping carts
+      that were not converted into completed orders. This helps in understanding
+      potential revenue loss, identifying points of friction in the checkout process,
+      and informing re-engagement strategies. It includes:
+
+      - **Cart Identification and Status**: Unique identifiers for carts, their current phase
+        in the checkout process, and whether they were eventually converted.
+      - **Store and Timestamp Information**: Details about the store where the cart was created
+        and the creation date of the cart.
+      - **Financial Metrics**: The total value of the cart in its original and converted currencies.
+      - **System Metadata**: Timestamps indicating when the data was last updated, refreshed,
+        and details about the data processing invocation.
+
+      This supports analysis of abandonment rates, identification of high-value abandoned carts,
+      and optimization of the customer journey to improve conversion rates.
+    config:
+      tags: ['api', 'analytics']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["cart_id", "cart_phase"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: cart_id
+        description: >
+          The unique identifier for the abandoned cart.
+        type: character varying
+
+      - name: store_id
+        description: >
+          The unique identifier for the store where the cart was created.
+        type: bigint
+
+      - name: cart_phase
+        description: >
+          The current phase of the cart (e.g., 'initiated', 'shipping_info', 'payment_info', 'abandoned').
+        type: character varying
+
+      - name: converted_cart
+        description: >
+          A flag indicating whether the abandoned cart was eventually converted into an order (1 for converted, 0 for not converted).
+        type: integer
+
+      - name: cart_created_at
+        description: >
+          The date when the cart was created.
+        type: date
+
+      - name: cart_total_value
+        description: >
+          The total value of the items in the cart in its original currency.
+        type: numeric
+
+      - name: cart_total_value_converted
+        description: >
+          The total value of the items in the cart converted to a standard currency.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__coupons
+    description: >
+      The `api__analytics__coupons` table provides detailed insights into the performance
+      and usage of discount coupons within the Zid platform. This table is essential for
+      marketing analysis, understanding promotional effectiveness, and tracking financial
+      impacts of discounts. It includes:
+
+      - **Coupon Identification and Details**: Unique identifiers for coupons, their codes,
+        names, discount types (e.g., percentage, fixed amount), and activation status.
+      - **Usage Rules**: Parameters like usage limits per coupon or customer, minimum order
+        totals, and whether the coupon applies to free cash-on-delivery (COD) or shipping.
+      - **Date and Usage Metrics**: Timestamps related to coupon creation, start and end dates,
+        and aggregated metrics on how many times coupons have been used and by how many customers.
+      - **Financial Impact**: The total discounted amounts and the resulting total value of
+        orders after discounts, in both original and converted currencies.
+      - **System Metadata**: Timestamps for data updates, refreshes, and processing invocation details.
+
+      This table supports analysis of coupon redemption rates, revenue optimization through
+      discounts, and evaluation of marketing campaigns.
+    config:
+      tags: ['api', 'analytics']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["store_id", "coupon_usage_date", "coupon_id"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: store_id
+        description: >
+          The unique identifier for the store where the coupon was created or used.
+        type: integer
+        # Removed individual tests for store_id as it's part of the compound unique test below.
+
+      - name: coupon_id
+        description: >
+          The unique identifier for the coupon.
+        type: bigint
+
+
+      - name: coupon_code
+        description: >
+          The unique code associated with the coupon.
+          Examples:
+          
+        type: character varying
+
+      - name: coupon_name
+        description: >
+          The name or description of the coupon.
+          Examples:
+          
+        type: character varying
+
+      - name: discount_type
+        description: >
+          The type of discount offered by the coupon.
+          Distinct values:
+          - percentage
+          - fixed_amount
+        type: character varying
+
+      - name: discount_amount
+        description: >
+          The amount of discount offered (e.g., 20 for 20%, or 10.00 for a fixed amount of 10).
+        type: numeric
+
+      - name: coupon_status
+        description: >
+          The current status of the coupon.
+          Examples:
+          - active
+          - expired
+          - inactive
+        type: character varying
+
+      - name: is_coupon_active
+        description: >
+          A boolean flag indicating if the coupon is currently active (true) or inactive (false).
+        type: boolean
+
+      - name: coupon_new_status
+        description: >
+          The updated or refined status of the coupon, if applicable.
+        type: character varying
+
+      - name: coupon_apply_to
+        description: >
+          Indicates what the coupon applies to (e.g., 'all_products', 'specific_products', 'shipping').
+        type: character varying
+
+      - name: coupon_usage_limit
+        description: >
+          The maximum number of times the coupon can be used in total.
+        type: integer
+
+      - name: coupon_usage_limit_per_customer
+        description: >
+          The maximum number of times a single customer can use the coupon.
+        type: character varying
+
+      - name: minimum_order_total
+        description: >
+          The minimum order total required for the coupon to be applicable.
+        type: numeric
+
+      - name: is_coupon_free_cod
+        description: >
+          A boolean flag indicating if the coupon offers free Cash on Delivery (COD).
+        type: boolean
+
+      - name: is_coupon_shipping
+        description: >
+          A boolean flag indicating if the coupon offers a discount on shipping.
+        type: boolean
+
+      - name: coupon_created_at
+        description: >
+          The date when the coupon was created.
+        type: date
+
+      - name: coupon_start_date
+        description: >
+          The date from which the coupon becomes active.
+        type: date
+
+      - name: coupon_end_date
+        description: >
+          The date when the coupon expires.
+        type: date
+
+      - name: coupon_usage_date
+        description: >
+          The date when the coupon was last used.
+        type: date
+
+      - name: coupon_usage_count
+        description: >
+          The total number of times the coupon has been used across all customers.
+        type: bigint
+
+      - name: customers_count
+        description: >
+          The number of unique customers who have used the coupon.
+        type: bigint
+
+      - name: discounted_amount
+        description: >
+          The total monetary value discounted by this coupon in its original currency.
+        type: numeric
+
+      - name: discounted_amount_converted
+        description: >
+          The total monetary value discounted by this coupon converted to a standard currency.
+        type: numeric
+
+      - name: total_value_after_discount
+        description: >
+          The total value of orders after applying this coupon's discount in its original currency.
+        type: numeric
+
+      - name: total_value_after_discount_converted
+        description: >
+          The total value of orders after applying this coupon's discount converted to a standard currency.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__customers
+    description: >
+        The `api__analytics__customers` table provides a detailed view of customer data,
+        focusing on their demographics, purchasing behavior, and geographical information.
+        This table is essential for understanding customer segments, tracking engagement,
+        and analyzing lifetime value. It includes:
+
+        - **Customer and Store Identification**: Unique identifiers for customers and the stores
+          they interact with.
+        - **Demographic and Location Data**: Customer names, joining dates, gender, and detailed
+          shipping address information including city and country names with geographical coordinates.
+        - **Order Activity and Value**: Metrics on the number of orders placed, the dates of
+          their first and last orders, days since their last order, and the total monetary
+          value of their orders, both original and converted.
+        - **Lifetime Metrics**: Calculations for customer lifetime days and average basket size.
+        - **System Metadata**: Timestamps for data updates, refreshes, and processing invocation details.
+
+        This table supports analysis of customer acquisition, retention, spending patterns,
+        and geographical distribution, enabling targeted marketing and improved customer service strategies.
+    config:
+      tags: ['api', 'analytics']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["store_id", "customer_id", "shipping_address_city_id", "shipping_address_country_id"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: customer_id
+        description: >
+          The unique identifier for the customer.
+        type: bigint
+
+      - name: store_id
+        description: >
+          The unique identifier for the store the customer is associated with.
+        type: bigint
+
+      - name: customer_name
+        description: >
+          The name of the customer.
+        type: character varying
+
+      - name: customer_joined_store_date
+        description: >
+          The date when the customer first joined or became associated with the store.
+        type: date
+
+      - name: shipping_address_city_id
+        description: >
+          The unique identifier for the city in the customer's primary shipping address.
+        type: bigint
+
+      - name: shipping_address_country_id
+        description: >
+          The unique identifier for the country in the customer's primary shipping address.
+        type: bigint
+
+      - name: customer_type
+        description: >
+          The type or category of the customer.
+        type: character varying
+
+      - name: customer_gender
+        description: >
+          The gender of the customer.
+        type: character varying
+
+      - name: customer_city_name
+        description: >
+          The name of the customer's city in English.
+        type: character varying
+
+      - name: customer_city_name_ar
+        description: >
+          The name of the customer's city in Arabic.
+        type: character varying
+
+      - name: customer_country_name
+        description: >
+          The name of the customer's country in English.
+        type: character varying
+
+      - name: customer_country_name_ar
+        description: >
+          The name of the customer's country in Arabic.
+        type: character varying
+
+      - name: city_lon
+        description: >
+          The longitude of the customer's primary city.
+        type: double precision
+
+      - name: city_lat
+        description: >
+          The latitude of the customer's primary city.
+        type: double precision
+
+      - name: first_order_date
+        description: >
+          The date of the customer's first order.
+        type: date
+
+      - name: last_order_date
+        description: >
+          The date of the customer's most recent order.
+        type: date
+
+      - name: days_since_last_order
+        description: >
+          The number of days since the customer's last order.
+        type: bigint
+
+      - name: customer_lifetime_days
+        description: >
+          The total number of days the customer has been active since joining the store.
+        type: bigint
+
+      - name: orders_count
+        description: >
+          The total number of orders placed by the customer.
+        type: bigint
+
+      - name: orders_total_value
+        description: >
+          The total monetary value of all orders placed by the customer in its original currency.
+        type: numeric
+
+      - name: orders_total_value_converted
+        description: >
+          The total monetary value of all orders placed by the customer converted to a standard currency.
+        type: numeric
+
+      - name: delivered_orders_count
+        description: >
+          The total number of orders successfully delivered to the customer.
+        type: bigint
+
+      - name: delivered_orders_total_value_converted
+        description: >
+          The total monetary value of delivered orders to the customer converted to a standard currency.
+        type: numeric
+
+      - name: avg_basket_size
+        description: >
+          The average value of items in the customer's orders.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__discount_rules
+    description: >
+      The `api__analytics__discount_rules` table provides comprehensive data on the performance
+      and impact of automated discount rules applied within the Zid platform. This table is
+      essential for analyzing the effectiveness of pricing strategies, understanding the
+      financial implications of discounts, and optimizing promotional efforts. It includes:
+
+      - **Discount Rule Identification**: Unique identifiers, names (in English and Arabic),
+        and the type of discount applied (e.g., percentage, fixed amount, buy one get one).
+      - **Usage Metrics**: Information on the date and total count of times a discount rule
+        was applied, and the number of unique customers who benefited from it.
+      - **Financial Impact**: The total value of orders after discounts and the total value
+        of discounts applied, both in original and converted currencies, providing a clear
+        picture of the financial impact.
+      - **System Metadata**: Timestamps for data updates, refreshes, and details about the
+        data processing invocation for traceability.
+
+      This table supports analysis of discount rule efficacy, revenue implications, and
+      customer response to automated promotions.
+    config:
+      tags: ['api', 'analytics', 'discount_rules']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["store_id", "discount_rule_usage_date", "discount_rule_id"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: discount_rule_id
+        description: >
+          The unique identifier for the discount rule.
+        type: character varying
+
+      - name: store_id
+        description: >
+          The unique identifier for the store where the discount rule was applied.
+        type: integer
+
+      - name: discount_rule_name
+        description: >
+          The name of the discount rule in English.
+        type: character varying
+
+      - name: discount_rule_name_ar
+        description: >
+          The name of the discount rule in Arabic.
+        type: character varying
+
+      - name: discount_type
+        description: >
+          The type of discount applied by the rule.
+          Distinct values:
+          - percentage
+          - fixed_amount
+          - free_shipping
+          - buy_x_get_y
+        type: character varying
+
+      - name: discount_rule_usage_date
+        description: >
+            The date when the discount rule was applied.
+        type: date
+
+      - name: discount_rule_usage_count
+        description: >
+          The total number of times the discount rule has been used.
+        type: bigint
+
+      - name: customers_count
+        description: >
+          The number of unique customers who benefited from this discount rule.
+        type: bigint
+
+      - name: total_value_after_discount
+        description: >
+          The total value of orders after the discount rule was applied, in its original currency.
+        type: numeric
+
+      - name: total_value_after_discount_converted
+        description: >
+          The total value of orders after the discount rule was applied, converted to a standard currency.
+        type: numeric
+
+      - name: total_discount_value
+        description: >
+          The total monetary value of the discount applied by this rule in its original currency.
+        type: numeric
+
+      - name: total_discount_value_converted
+        description: >
+          The total monetary value of the discount applied by this rule converted to a standard currency.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__inventories
+    description: >
+      The `api__analytics__inventories` table provides analytical data on inventory locations
+      and their association with order performance within the Zid platform. This table is
+      crucial for understanding the distribution of orders, optimizing logistics, and assessing
+      the contribution of different inventory points to overall sales. It includes:
+
+      - **Inventory Location Details**: Unique identifiers for inventory locations, their names,
+        and full addresses, along with city and country details in both English and Arabic.
+      - **Order Association**: The date when orders were placed and aggregated metrics on
+        the number of orders and their total value (in original and converted currencies)
+        linked to each inventory location.
+      - **System Metadata**: Timestamps for when the data was last updated, refreshed, and
+        the invocation ID for tracking data processing.
+
+      This table supports analysis of inventory location effectiveness, geographical sales
+      distribution, and logistical planning.
+    config:
+      tags: ['api', 'analytics', 'inventories']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["store_id", "order_date", "inventory_location_id"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: inventory_location_id
+        description: >
+          The unique identifier for the inventory location.
+        type: character varying
+
+      - name: store_id
+        description: >
+          The unique identifier for the store associated with this inventory location.
+        type: integer
+
+      - name: order_date
+        description: >
+          The date on which orders associated with this inventory location were placed.
+        type: date
+
+      - name: inventory_name
+        description: >
+          The name of the inventory location.
+        type: character varying
+
+      - name: full_address
+        description: >
+          The complete address of the inventory location.
+        type: character varying
+
+      - name: city_name
+        description: >
+          The name of the city where the inventory location is situated, in English.
+        type: character varying
+
+      - name: city_name_ar
+        description: >
+          The name of the city where the inventory location is situated, in Arabic.
+        type: character varying
+
+      - name: country_name
+        description: >
+          The name of the country where the inventory location is situated, in English.
+        type: character varying
+
+      - name: country_name_ar
+        description: >
+          The name of the country where the inventory location is situated, in Arabic.
+        type: character varying
+
+      - name: orders_count
+        description: >
+          The total number of orders associated with this inventory location on the given date.
+        type: bigint
+
+      - name: orders_total_value
+        description: >
+          The total monetary value of orders associated with this inventory location on the given date, in its original currency.
+        type: numeric
+
+      - name: orders_total_value_converted
+        description: >
+          The total monetary value of orders associated with this inventory location on the given date, converted to a standard currency.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__orders_status_dates
+    description: >
+      The `api__analytics__orders_status_dates` table provides analytical insights into
+      the lifecycle and duration of orders at various status changes. It tracks the time
+      spent in different order phases, enabling detailed analysis of operational efficiency
+      and identifying bottlenecks in order fulfillment. This table is essential for optimizing
+      delivery processes and improving customer satisfaction. It includes:
+
+      - **Order Counts by Status**: Aggregated counts of orders based on their status at
+        a specific creation timestamp (e.g., created, preparing, in delivery, delivered).
+      - **Time in Status Transitions**: Summed durations (in minutes) for key transitions
+        between order statuses, such as creation to delivery, preparing to ready for delivery,
+        and in-delivery to delivered.
+      - **System Metadata**: Timestamps for data updates, refreshes, and processing invocation details.
+
+      This table supports in-depth analysis of order processing times, delivery performance,
+      and operational bottlenecks, aiding in logistics and customer service improvements.
+    config:
+      tags: ['api', 'analytics', 'order_status_dates']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["store_id", "order_created_at"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: store_id
+        description: >
+          The unique identifier for the store to which the orders belong.
+        type: integer
+
+      - name: order_created_at
+        description: >
+          The timestamp when the order was created. This serves as the reference point for status tracking.
+        type: timestamp without time zone
+
+      - name: number_of_orders_cd
+        description: >
+          The number of orders that have reached 'Created' status.
+          Distinct values:
+          - Refers to orders that have been successfully placed.
+        type: bigint
+
+      - name: number_of_orders_cp
+        description: >
+          The number of orders currently in 'Confirmed/Processing' status.
+        type: bigint
+
+      - name: number_of_orders_pr
+        description: >
+          The number of orders currently in 'Preparing' status.
+        type: bigint
+
+      - name: number_of_orders_ip
+        description: >
+          The number of orders currently in 'In Progress' status.
+        type: bigint
+
+      - name: number_of_orders_ri
+        description: >
+          The number of orders currently in 'Ready for In-delivery' status.
+        type: bigint
+
+      - name: number_of_orders_id
+        description: >
+          The number of orders currently in 'In Delivery' status.
+        type: bigint
+
+      - name: number_of_orders_rr
+        description: >
+          The number of orders currently in 'Returned/Reversed' status.
+        type: bigint
+
+      - name: sum_created_at_to_delivered_mins
+        description: >
+          The total sum of minutes from order creation to delivery for all relevant orders.
+        type: double precision
+
+      - name: sum_created_at_to_preparing_mins
+        description: >
+          The total sum of minutes from order creation to the 'Preparing' status.
+        type: double precision
+
+      - name: sum_preparing_to_ready_mins
+        description: >
+          The total sum of minutes from 'Preparing' status to 'Ready for Delivery' status.
+        type: double precision
+
+      - name: sum_preparing_to_in_delivery_mins
+        description: >
+          The total sum of minutes from 'Preparing' status to 'In Delivery' status.
+        type: double precision
+
+      - name: sum_ready_to_in_delivery_mins
+        description: >
+          The total sum of minutes from 'Ready for Delivery' status to 'In Delivery' status.
+        type: double precision
+
+      - name: sum_in_delivery_to_delivered_mins
+        description: >
+          The total sum of minutes from 'In Delivery' status to 'Delivered' status.
+        type: double precision
+
+      - name: sum_processing_reverse_to_reversed_mins
+        description: >
+          The total sum of minutes from 'Processing Reverse' status to 'Reversed' status.
+        type: double precision
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__orders
+    description: >
+      The `api__analytics__orders` model provides a comprehensive view of order-related data,
+      essential for analyzing sales performance, customer behavior, and operational efficiency.
+      This model includes:
+
+      - **Order Identification and Timestamps**: Unique identifiers for orders, creation dates,
+        and delivery durations.
+      - **Store and Customer Information**: Details about the store where the order was placed,
+        and customer identification with their joining date.
+      - **Order Status and Financials**: Current status of orders, various payment and shipping methods,
+        and a detailed breakdown of order values including VAT, shipping fees, discounts, and subtotals.
+      - **Geographical Data**: Information about pickup and shipping addresses, including city and
+        country details with geographical coordinates.
+      - **Order Sourcing and Tracking**: Data on where the order originated (source, UTM parameters)
+        to facilitate marketing and channel analysis.
+      - **System Metadata**: Timestamps for when the data was last updated, refreshed, and the
+        invocation ID for tracking data processing.
+
+      This model supports in-depth analysis of order trends, revenue generation, customer engagement,
+      and logistical performance for business intelligence and strategic decision-making.
+    config:
+      tags: ['api', 'analytics', 'orders']
+      meta:
+        dagster:
+          group: analytics
+      grants:
+        select: ['qubit']
+    columns:
+      - name: order_id
+        description: >
+          The unique identifier for the order.
+        type: bigint
+        tests:
+          - unique
+          - not_null
+
+      - name: order_created_at_date
+        description: >
+          The date when the order was created.
+        type: date
+
+      - name: order_delivered_in_days
+        description: >
+          The number of days it took for the order to be delivered.
+        type: bigint
+
+      - name: order_delivered_in_hours
+        description: >
+          The number of hours it took for the order to be delivered.
+        type: bigint
+
+      - name: store_id
+        description: >
+          The unique identifier for the store where the order was placed.
+        type: integer
+
+      - name: customer_id
+        description: >
+          The unique identifier for the customer who placed the order.
+        type: integer
+
+      - name: customer_name
+        description: >
+          The name of the customer who placed the order.
+        type: character varying
+
+      - name: customer_joined_store_date
+        description: >
+          The date when the customer joined the store.
+        type: date
+
+      - name: order_status_id
+        description: >
+          The unique identifier for the status of the order.
+        type: integer
+
+      - name: order_status_name
+        description: >
+          The name of the order status in English.
+        type: character varying
+
+      - name: order_status_name_ar
+        description: >
+          The name of the order status in Arabic.
+        type: character varying
+
+      - name: payment_method_code
+        description: >
+          The code for the payment method used for the order.
+        type: character varying
+
+      - name: payment_method_name
+        description: >
+          The name of the payment method in English.
+        type: character varying
+
+      - name: payment_method_name_ar
+        description: >
+          The name of the payment method in Arabic.
+        type: character varying
+
+      - name: payment_option_code
+        description: >
+          The code for the specific payment option used.
+        type: character varying
+
+      - name: payment_option_name
+        description: >
+          The name of the payment option in English.
+        type: character varying
+
+      - name: payment_option_name_ar
+        description: >
+          The name of the payment option in Arabic.
+        type: character varying
+
+      - name: shipping_method_code
+        description: >
+          The code for the shipping method used for the order.
+        type: character varying
+
+      - name: shipping_method_name
+        description: >
+          The name of the shipping method in English.
+        type: character varying
+
+      - name: shipping_method_name_ar
+        description: >
+          The name of the shipping method in Arabic.
+        type: character varying
+
+      - name: pickup_option_city_id
+        description: >
+          The unique identifier for the city if the order was picked up.
+        type: integer
+
+      - name: pickup_option_city_name
+        description: >
+          The name of the city if the order was picked up, in English.
+        type: character varying
+
+      - name: pickup_option_city_name_ar
+        description: >
+          The name of the city if the order was picked up, in Arabic.
+        type: character varying
+
+      - name: shipping_address_city_id
+        description: >
+          The unique identifier for the city in the shipping address.
+        type: bigint
+
+      - name: shipping_address_city_name
+        description: >
+          The name of the city in the shipping address, in English.
+        type: character varying
+
+      - name: shipping_address_city_name_ar
+        description: >
+          The name of the city in the shipping address, in Arabic.
+        type: character varying
+
+      - name: shipping_address_city_lon
+        description: >
+          The longitude of the city in the shipping address.
+        type: double precision
+
+      - name: shipping_address_city_lat
+        description: >
+          The latitude of the city in the shipping address.
+        type: double precision
+
+      - name: shipping_address_country_id
+        description: >
+          The unique identifier for the country in the shipping address.
+        type: bigint
+
+      - name: shipping_address_country_name
+        description: >
+          The name of the country in the shipping address, in English.
+        type: character varying
+
+      - name: shipping_address_country_name_ar
+        description: >
+          The name of the country in the shipping address, in Arabic.
+        type: character varying
+
+      - name: order_products_count
+        description: >
+          The total number of products in the order.
+        type: integer
+
+      - name: order_currency_code
+        description: >
+          The currency code used for the order.
+        type: character varying
+
+      - name: store_currency_code
+        description: >
+          The currency code used by the store.
+        type: character varying
+
+      - name: order_total_value
+        description: >
+          The total value of the order in its original currency.
+        type: numeric
+
+      - name: order_total_value_converted
+        description: >
+          The total value of the order converted to a standard currency.
+        type: numeric
+
+      - name: order_vat_value
+        description: >
+          The value of Value Added Tax (VAT) applied to the order in its original currency.
+        type: numeric
+
+      - name: order_vat_value_converted
+        description: >
+          The value of Value Added Tax (VAT) applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_shipping_fees
+        description: >
+          The shipping fees for the order in its original currency.
+        type: numeric
+
+      - name: order_shipping_fees_converted
+        description: >
+          The shipping fees for the order converted to a standard currency.
+        type: numeric
+
+      - name: order_coupon_value
+        description: >
+          The value of the coupon applied to the order in its original currency.
+        type: numeric
+
+      - name: order_coupon_value_converted
+        description: >
+          The value of the coupon applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_shipping_discount_value
+        description: >
+          The value of the shipping discount applied to the order in its original currency.
+        type: numeric
+
+      - name: order_shipping_discount_value_converted
+        description: >
+          The value of the shipping discount applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_total_value
+        description: >
+          The sub-total value of the order in its original currency.
+        type: numeric
+
+      - name: order_sub_total_value_converted
+        description: >
+          The sub-total value of the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_value
+        description: >
+          The sub-totals value of the order in its original currency (potentially including VAT).
+        type: numeric
+
+      - name: order_sub_totals_value_converted
+        description: >
+          The sub-totals value of the order converted to a standard currency (potentially including VAT).
+        type: numeric
+
+      - name: order_products_discount_value
+        description: >
+          The total discount value applied to products in the order in its original currency.
+        type: numeric
+
+      - name: order_products_discount_value_converted
+        description: >
+          The total discount value applied to products in the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_before_vat_value
+        description: >
+          The sub-totals value of the order before VAT in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_before_vat_value_converted
+        description: >
+          The sub-totals value of the order before VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_coupon_cod_discount_value
+        description: >
+          The discount value from cash on delivery (COD) coupons in its original currency.
+        type: numeric
+
+      - name: order_coupon_cod_discount_value_converted
+        description: >
+          The discount value from cash on delivery (COD) coupons converted to a standard currency.
+        type: numeric
+
+      - name: order_free_shipping_coupon_value
+        description: >
+          The value of free shipping coupons applied to the order in its original currency.
+        type: numeric
+
+      - name: order_free_shipping_coupon_value_converted
+        description: >
+          The value of free shipping coupons applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_coupon_discount_value
+        description: >
+          The sub-totals value of the order after applying coupon discounts in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_coupon_discount_value_converted
+        description: >
+          The sub-totals value of the order after applying coupon discounts converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_products_discount_value
+        description: >
+          The sub-totals value of the order after applying product discounts in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_products_discount_value_converted
+        description: >
+          The sub-totals value of the order after applying product discounts converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_vat_value
+        description: >
+          The sub-totals value of the order after applying VAT in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_vat_value_converted
+        description: >
+          The sub-totals value of the order after applying VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_zid_cod_value
+        description: >
+          The Zid Cash on Delivery (COD) value for the order in its original currency.
+        type: numeric
+
+      - name: order_zid_cod_value_converted
+        description: >
+          The Zid Cash on Delivery (COD) value for the order converted to a standard currency.
+        type: numeric
+
+      - name: order_total_before_vat_value
+        description: >
+          The total value of the order before VAT in its original currency.
+        type: numeric
+
+      - name: order_total_before_vat_value_converted
+        description: >
+          The total value of the order before VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_source_code
+        description: >
+          The code identifying the source of the order (e.g., direct, referral).
+        type: character varying
+
+      - name: order_source_name
+        description: >
+          The name of the order source in English.
+        type: character varying
+
+      - name: order_source_name_ar
+        description: >
+          The name of the order source in Arabic.
+        type: character varying
+
+      - name: order_utm_source
+        description: >
+          The UTM source parameter associated with the order, indicating the origin of traffic.
+        type: character varying
+
+      - name: order_utm_medium
+        description: >
+          The UTM medium parameter associated with the order, indicating the marketing medium (e.g., email, CPC).
+        type: character varying
+
+      - name: order_utm_campaign
+        description: >
+          The UTM campaign parameter associated with the order, indicating the specific campaign.
+        type: character varying
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__products
+    description: >
+      The `api__analytics__products` table provides comprehensive analytical data on products,
+      including their details, inventory, sales performance, and customer engagement metrics.
+      This table is essential for understanding product popularity, managing stock, optimizing
+      pricing strategies, and evaluating the overall effectiveness of product offerings. It includes:
+
+      - **Product Identification and Details**: Unique identifiers for products, their names
+        (in English and Arabic), SKU, structure (e.g., variant, parent), cost, and various pricing information.
+      - **Inventory and Availability**: Current available quantity and whether the product has
+        infinite stock.
+      - **Sales Performance**: Aggregated metrics on the number of orders and quantity sold
+        for each product, along with total sales value and tax amounts in original and converted currencies.
+      - **Customer Engagement**: Data on how many times a product has been added to carts,
+        notification counts, and average customer ratings.
+      - **System Metadata**: Timestamps for data updates, refreshes, and processing invocation details.
+
+      This table supports in-depth analysis of product performance, inventory management,
+      sales forecasting, and customer preferences.
+    config:
+      tags: ['api', 'analytics', 'products']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["product_id", "product_order_date"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: product_id
+        description: >
+          The unique identifier for the product.
+        type: character varying
+
+      - name: store_id
+        description: >
+          The unique identifier for the store that offers this product.
+        type: integer
+
+      - name: product_name
+        description: >
+          The name of the product in English.
+        type: character varying
+
+      - name: product_name_ar
+        description: >
+          The name of the product in Arabic.
+        type: character varying
+
+      - name: product_sku
+        description: >
+          The Stock Keeping Unit (SKU) for the product, a unique identifier for inventory.
+        type: character varying
+
+      - name: product_structure
+        description: >
+          Describes the product's structure, such as whether it's a 'parent' product or a 'variant'.
+        type: character varying
+
+      - name: product_parent_id
+        description: >
+          The identifier of the parent product if this product is a variant.
+        type: character varying
+
+      - name: product_cost
+        description: >
+          The cost of the product to the seller.
+        type: numeric
+
+      - name: product_price
+        description: >
+          The listed selling price of the product.
+        type: numeric
+
+      - name: product_sale_price
+        description: >
+          The discounted or sale price of the product, if applicable.
+        type: numeric
+
+      - name: product_available_quantity
+        description: >
+          The current quantity of the product available in inventory.
+        type: numeric
+
+      - name: is_infinite
+        description: >
+          A flag indicating if the product has infinite stock (1 for infinite, 0 for finite).
+        type: smallint
+
+      - name: product_image
+        description: >
+          The URL or identifier for the product's main image.
+        type: character varying
+
+      - name: product_order_date
+        description: >
+          The date when the product was last ordered.
+        type: date
+
+      - name: product_orders_count
+        description: >
+          The total number of orders in which this product was included.
+        type: bigint
+
+      - name: product_sold_quantity
+        description: >
+          The total quantity of this product that has been sold.
+        type: bigint
+
+      - name: product_total_tax_amount
+        description: >
+          The total tax amount collected for sales of this product in its original currency.
+        type: numeric
+
+      - name: product_total_tax_amount_converted
+        description: >
+          The total tax amount collected for sales of this product converted to a standard currency.
+        type: numeric
+
+      - name: product_total_sales_value
+        description: >
+          The total revenue generated from sales of this product in its original currency.
+        type: numeric
+
+      - name: product_total_sales_value_converted
+        description: >
+          The total revenue generated from sales of this product converted to a standard currency.
+        type: numeric
+
+      - name: product_added_to_cart_count
+        description: >
+          The total number of times the product has been added to shopping carts.
+        type: bigint
+
+      - name: product_notifications_count
+        description: >
+          The number of notifications related to this product (e.g., back in stock notifications).
+        type: bigint
+
+      - name: product_avg_rating
+        description: >
+          The average customer rating for the product.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__store_token
+    description: ' '
+    config:
+      tags: ['api'  ,'analytics']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: store_id
+        tests:
+          - unique
+          - not_null
+
+  - name: api__analytics__visits
+    description: >
+      The `api__analytics__visits` table provides aggregated daily data on website
+      visits and user interactions within stores, crucial for analyzing traffic sources,
+      user engagement, and conversion funnels. It tracks key metrics related to how
+      users navigate from initial visit to completed orders. It includes:
+
+      - **Visit Identification and Timestamps**: Unique identifiers for visit aggregates,
+        the activity date, and creation timestamps.
+      - **Engagement Metrics**: Counts for total visits, product views, add-to-cart events,
+        initial checkouts, and completed orders, indicating progression through the sales funnel.
+      - **Source Tracking**: UTM parameters (source, medium, campaign) to attribute visits
+        to specific marketing efforts, along with a general visits source.
+      - **System Metadata**: Timestamps for data updates, refreshes, and processing invocation details.
+
+      This table supports in-depth analysis of website traffic patterns, user behavior
+      on the platform, conversion rates, and the effectiveness of various marketing channels.
+    config:
+      tags: ['api', 'analytics', 'visits']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: id
+        description: >
+          The unique identifier for the daily visit aggregate record.
+        type: character varying
+        tests:
+          - unique
+          - not_null
+
+      - name: store_id
+        description: >
+          The unique identifier for the store being visited.
+        type: bigint
+
+      - name: activity_date
+        description: >
+          The date for which the visit metrics are reported.
+        type: date
+
+      - name: visits_count
+        description: >
+          The total number of unique visits to the store on this date.
+        type: bigint
+
+      - name: product_views
+        description: >
+          The total number of product page views on this date.
+        type: bigint
+
+      - name: add_to_cart
+        description: >
+          The total number of times products were added to carts on this date.
+        type: bigint
+
+      - name: initial_checkout
+        description: >
+          The total number of times users initiated the checkout process on this date.
+        type: bigint
+
+      - name: orders_completed
+        description: >
+          The total number of orders completed on this date, indicating successful conversions from visits.
+        type: bigint
+
+      - name: utm_source
+        description: >
+          The UTM source parameter, indicating the origin of traffic (e.g., 'google', 'facebook').
+        type: character varying
+
+      - name: utm_medium
+        description: >
+          The UTM medium parameter, indicating the marketing medium (e.g., 'cpc', 'email').
+        type: character varying
+
+      - name: utm_campaign
+        description: >
+          The UTM campaign parameter, indicating the specific campaign that led to the visit.
+        type: character varying
+
+      - name: created_at_gmt
+        description: >
+          The GMT timestamp when this visit record was created.
+        type: timestamp without time zone
+
+      - name: visits_source
+        description: >
+          A general category or name for the source of the visits.
+        type: character varying
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__zidpay_analytics
+    description: >
+      The `api__analytics__zidpay_analytics` table provides in-depth analytical data
+      on payment transactions processed through ZidPay. This table is critical for
+      monitoring payment gateway performance, understanding revenue splits, analyzing
+      transaction outcomes (success, failure, refund), and identifying common payment
+      issues. It includes:
+
+      - **Transaction Identification**: Merchant, store, and payment IDs for traceability.
+      - **Payment Details**: Amount, status, merchant's share, and payment fees,
+        along with network names (in English and Arabic).
+      - **Failure and Error Reporting**: Reasons for payment failures and error names
+        (in English and Arabic) to aid in troubleshooting.
+      - **Deposit and Refund Status**: Information on the status of deposits and refunds
+        (including type and amount), crucial for financial reconciliation.
+      - **Contextual Order Data**: Relevant order country and status names to link payment
+        data with the broader order lifecycle.
+      - **Timestamps**: Payment creation date and system timestamps for data updates
+        and processing.
+
+      This table supports detailed analysis of payment success rates, refund rates,
+      transaction costs, and regional payment trends, facilitating financial operations
+      and service improvement.
+    config:
+      tags: ['api', 'analytics', 'zidpay']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: merchant_id
+        description: >
+          The unique identifier for the merchant associated with the ZidPay transaction.
+        type: integer
+
+      - name: store_id
+        description: >
+          The unique identifier for the store where the ZidPay transaction occurred.
+        type: character varying
+
+      - name: payment_id
+        description: >
+          The unique identifier for the ZidPay payment transaction.
+        type: bigint
+        tests:
+          - unique
+          - not_null
+
+      - name: payment_status_name
+        description: >
+          The status of the payment (e.g., 'completed', 'failed', 'pending').
+        type: character varying
+
+      - name: payment_amount
+        description: >
+          The total monetary amount of the payment.
+        type: numeric
+
+      - name: merchant_share
+        description: >
+          The portion of the payment amount retained by the merchant.
+        type: numeric
+
+      - name: payment_fees_value
+        description: >
+          The fees associated with processing the payment.
+        type: numeric
+
+      - name: network_name
+        description: >
+          The name of the payment network (e.g., 'Mada', 'Visa') in English.
+        type: character varying
+
+      - name: network_name_ar
+        description: >
+          The name of the payment network in Arabic.
+        type: character varying
+
+      - name: payment_failure_reason
+        description: >
+          The reason for payment failure, if applicable.
+        type: character varying
+
+      - name: payment_error_name
+        description: >
+          The name of the payment error in English, if a payment failed.
+        type: character varying
+
+      - name: payment_error_name_ar
+        description: >
+          The name of the payment error in Arabic, if a payment failed.
+        type: character varying
+
+      - name: deposit_status_name
+        description: >
+          The status of the deposit related to the payment (e.g., 'settled', 'pending').
+        type: character varying
+
+      - name: deposit_status_name_ar
+        description: >
+          The status of the deposit related to the payment in Arabic.
+        type: character varying
+
+      - name: refund_status_name
+        description: >
+          The status of any refund initiated for this payment (e.g., 'refunded', 'pending_refund').
+        type: character varying
+
+      - name: refund_status_name_ar
+        description: >
+          The status of any refund initiated for this payment in Arabic.
+        type: character varying
+
+      - name: refund_type_name
+        description: >
+          The type of refund (e.g., 'full', 'partial').
+        type: character varying
+
+      - name: refund_type_name_ar
+        description: >
+          The type of refund in Arabic.
+        type: character varying
+
+      - name: refund_amount
+        description: >
+          The monetary amount that was refunded, if applicable.
+        type: numeric
+
+      - name: refunds_count
+        description: >
+          The number of refunds associated with this payment.
+        type: bigint
+
+      - name: payment_created_at_date
+        description: >
+          The date when the ZidPay payment was created.
+        type: date
+
+      - name: order_country_name
+        description: >
+          The name of the country where the associated order was placed, in English.
+        type: character varying
+
+      - name: order_country_name_ar
+        description: >
+          The name of the country where the associated order was placed, in Arabic.
+        type: character varying
+
+      - name: order_status_name
+        description: >
+          The status of the order associated with this payment, in English.
+        type: character varying
+
+      - name: order_status_name_ar
+        description: >
+          The status of the order associated with this payment, in Arabic.
+        type: character varying
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__zidpay_deposits
+    description: >
+      The `api__analytics__zidpay_deposits` table tracks the details of deposits made
+      through ZidPay to merchants. This table is essential for financial reconciliation,
+      monitoring payout processes, and understanding the flow of funds from the payment
+      gateway to store owners. It includes:
+
+      - **Deposit Identification**: Unique identifiers for deposits and the associated store.
+      - **Financial Details**: The total amount provided by the payment provider, the fees
+        associated with the deposit, and the current status of the deposit (e.g., settled, pending).
+      - **Deposit Type**: Information on the type of deposit (e.g., daily, weekly).
+      - **Timestamps**: The date when the deposit occurred and system timestamps for data
+        updates and processing.
+
+      This table supports analysis of deposit regularity, fee structures, and overall
+      financial settlement efficiency for merchants using ZidPay.
+    config:
+      tags: ['api', 'analytics', 'zidpay', 'deposits']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: store_id
+        description: >
+          The unique identifier for the store to which the deposit was made.
+        type: character varying
+
+      - name: deposit_id
+        description: >
+          The unique identifier for the ZidPay deposit.
+        type: integer
+        tests:
+          - unique
+          - not_null
+
+      - name: provider_total_amount
+        description: >
+          The total amount of money deposited by the payment provider to the merchant.
+        type: numeric
+
+      - name: deposit_fees_value
+        description: >
+          The fees deducted or associated with this deposit.
+        type: numeric
+
+      - name: deposit_status_name
+        description: >
+          The current status of the deposit (e.g., 'settled', 'pending', 'failed').
+        type: character varying
+
+      - name: deposit_type_name
+        description: >
+          The type of deposit (e.g., 'daily_payout', 'weekly_payout', 'manual_deposit').
+        type: character varying
+
+      - name: deposited_at_date
+        description: >
+          The date when the deposit was made.
+        type: date
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__zidpay_stores
+    description: >
+      The `api__analytics__zidpay_stores` table provides key information about stores
+      that are integrated with and utilize ZidPay for payment processing. This table
+      is important for understanding the ZidPay merchant base, identifying stores
+      with active payment integrations, and segmenting stores based on their operational
+      characteristics (e.g., NGO status). It includes:
+
+      - **Store Identification**: Unique identifiers for stores, their names, and URLs.
+      - **ZidPay Status**: A flag indicating whether ZidPay is currently active for the store.
+      - **Store Classification**: A flag indicating if the store operates as a Non-Governmental Organization (NGO).
+      - **System Metadata**: Timestamps for data refreshes, run start times, and processing invocation IDs.
+
+      This table supports analysis of ZidPay adoption rates, merchant segmentation,
+      and operational monitoring of payment integrations.
+    config:
+      tags: ['api', 'analytics', 'zidpay', 'stores']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: store_id
+        description: >
+          The unique identifier for the store.
+        type: bigint
+        tests:
+          - unique
+          - not_null
+
+      - name: store_name
+        description: >
+          The name of the store.
+        type: character varying
+
+      - name: store_url
+        description: >
+          The URL or domain of the store.
+        type: character varying
+
+      - name: is_zidpay_active
+        description: >
+          A boolean flag indicating whether ZidPay is active for this store.
+        type: boolean
+
+      - name: is_ngo_store
+        description: >
+          A boolean flag indicating if the store is registered as a Non-Governmental Organization (NGO).
+        type: boolean
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__store_currency
+    description: ' '
+    columns:
+      - name: store_id
+        tests:
+          - unique
+          - not_null
+    config:
+      tags: ['api'  ,'analytics']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__ratings
+    description: >
+      The `api__analytics__ratings` table captures detailed information about customer ratings
+      and reviews for various items within a store. This table is essential for understanding
+      customer satisfaction, product performance, and areas for improvement. It includes:
+
+      - **Rating Identification**: Unique identifiers for each rating, along with associated
+        store and customer IDs.
+      - **Item Details**: Information about the item being rated, including its ID, type
+        (e.g., product, service), and an optional reference ID for cross-referencing.
+      - **Rating Content**: The numerical rating value, any accompanying comment, and flags
+        indicating if the review is anonymous or if the customer has been notified.
+      - **Status and Metadata**: The current status of the rating (e.g., published, pending)
+        and any additional unstructured metadata.
+      - **Timestamps**: The date when the rating was created and system timestamps for data
+        updates and processing.
+
+      This table supports analysis of average ratings, sentiment analysis from comments,
+      identification of top-rated or low-rated items, and tracking customer feedback over time.
+    config:
+      tags: ['api', 'analytics', 'ratings']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: id
+        description: >
+          The unique identifier for the rating entry.
+        type: character varying
+        tests:
+          - unique
+          - not_null
+
+      - name: store_id
+        description: >
+          The unique identifier for the store where the rating was submitted.
+        type: bigint
+
+      - name: customer_id
+        description: >
+          The unique identifier for the customer who submitted the rating.
+        type: bigint
+
+      - name: item_id
+        description: >
+          The unique identifier of the item (e.g., product_id) that was rated.
+        type: character varying
+
+      - name: item_type
+        description: >
+          The type of item being rated (e.g., 'product', 'service').
+        type: character varying
+
+      - name: optional_reference_id
+        description: >
+          An optional additional identifier for referencing the item or related entity.
+        type: character varying
+
+      - name: status_value
+        description: >
+          The current status of the rating (e.g., 'published', 'pending', 'rejected').
+        type: character varying
+
+      - name: rating_value
+        description: >
+          The numerical value of the rating (e.g., 1 to 5 stars).
+        type: integer
+
+      - name: comment
+        description: >
+          Any textual comment or review provided by the customer.
+        type: character varying
+
+      - name: is_anonymous
+        description: >
+          A boolean flag indicating if the rating was submitted anonymously.
+        type: boolean
+
+      - name: is_notified
+        description: >
+          A boolean flag indicating if the customer has been notified about their rating status or a response.
+        type: boolean
+
+      - name: meta
+        description: >
+          Additional unstructured metadata related to the rating.
+        type: character varying
+
+      - name: rating_created_at_date
+        description: >
+          The date when the rating was created.
+        type: date
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: refreshed_at_utc
+        description: >
+          The UTC timestamp when the data was last refreshed.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: character varying 
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__products_order_products
+    description: ' '
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["product_id", "product_order_date"]
+          ignore_row_if: "any_value_is_missing"
+    config:
+      tags: ['api'  ,'analytics', 'inactive']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__products_order_products_parent
+    description: ' '
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["product_id", "product_order_date"]
+          ignore_row_if: "any_value_is_missing"
+    config:
+      tags: ['api'  ,'analytics', 'inactive']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__products_order_products_all
+    description: ' '
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["product_id", "product_order_date"]
+          ignore_row_if: "any_value_is_missing"
+    config:
+      tags: ['api'  ,'analytics', 'inactive']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__products_order_products_sales
+    description: ' '
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["product_id", "product_order_date"]
+          ignore_row_if: "any_value_is_missing"
+    config:
+      tags: ['api'  ,'analytics']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__affiliates
+    description: ' '
+    config:
+      tags: ['api', 'inactive']
+      meta:
+        dagster:
+          group: inactive
+
+  - name: api__analytics__store_currency_changes
+    description: ' '
+    config:
+      tags: ['api'  ,'analytics']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__marketplace_orders
+    description: >
+      The `api__analytics__marketplace_orders` table provides a comprehensive and detailed
+      record of orders placed through the Zid marketplace. This table is vital for deep
+      dives into marketplace performance, customer purchasing habits, logistical efficiency,
+      and financial reconciliation. It includes:
+
+      - **Order Lifecycle**: Key timestamps for order creation, delivery, and cancellation/return,
+        along with calculated delivery durations.
+      - **Participants' Information**: Identifiers and names for the store and customer involved
+        in each transaction, including the customer's joining date.
+      - **Transactional Details**: Extensive financial breakdowns covering total order value,
+        VAT, shipping fees, various discounts (coupon, shipping, product), and sub-total values
+        at different stages, all provided in both original and converted currencies.
+      - **Logistical and Payment Data**: Information on payment methods, shipping methods,
+        pickup options, and detailed geographical data for shipping addresses (city, country,
+        coordinates).
+      - **Product and Inventory**: Counts of products in an order, their cost, and the associated
+        inventory location.
+      - **Source Tracking**: Data on the order's source, including UTM parameters, for marketing
+        attribution.
+      - **Currency Exchange**: Details related to currency codes and exchange rates for accurate
+        financial reporting across different currencies.
+      - **System Metadata**: Timestamps for data updates, run start times, and invocation IDs
+        for data pipeline traceability.
+
+      This table supports advanced analytics on marketplace sales trends, revenue generation,
+      customer behavior, logistics optimization, and marketing campaign effectiveness.
+    config:
+      tags: ['api', 'analytics', 'marketplace']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: order_id
+        description: >
+          The unique identifier for the marketplace order.
+        type: bigint
+        tests:
+          - unique
+          - not_null
+
+      - name: order_created_at_date
+        description: >
+          The date when the marketplace order was created.
+        type: date
+
+      - name: order_delivered_in_days
+        description: >
+          The number of days it took for the order to be delivered.
+        type: bigint
+
+      - name: order_delivered_in_hours
+        description: >
+          The number of hours it took for the order to be delivered.
+        type: bigint
+
+      - name: order_delivered_at_date
+        description: >
+          The date when the marketplace order was delivered.
+        type: date
+
+      - name: order_canceled_returned_at_date
+        description: >
+          The date when the marketplace order was canceled or returned.
+        type: date
+
+      - name: store_id
+        description: >
+          The unique identifier for the store involved in the marketplace order.
+        type: integer
+
+      - name: customer_id
+        description: >
+          The unique identifier for the customer who placed the marketplace order.
+        type: integer
+
+      - name: customer_name
+        description: >
+          The name of the customer who placed the marketplace order.
+        type: character varying
+
+      - name: customer_joined_store_date
+        description: >
+          The date when the customer first joined the store associated with the marketplace order.
+        type: date
+
+      - name: order_status_id
+        description: >
+          The unique identifier for the status of the marketplace order.
+        type: integer
+
+      - name: order_status_name
+        description: >
+          The name of the order status in English.
+        type: character varying
+
+      - name: order_status_name_ar
+        description: >
+          The name of the order status in Arabic.
+        type: character varying
+
+      - name: payment_method_code
+        description: >
+          The code for the payment method used for the marketplace order.
+        type: character varying
+
+      - name: payment_method_name
+        description: >
+          The name of the payment method in English.
+        type: character varying
+
+      - name: payment_method_name_ar
+        description: >
+          The name of the payment method in Arabic.
+        type: character varying
+
+      - name: payment_option_code
+        description: >
+          The code for the specific payment option used for the marketplace order.
+        type: character varying
+
+      - name: payment_option_name
+        description: >
+          The name of the payment option in English.
+        type: character varying
+
+      - name: payment_option_name_ar
+        description: >
+          The name of the payment option in Arabic.
+        type: character varying
+
+      - name: shipping_method_code
+        description: >
+          The code for the shipping method used for the marketplace order.
+        type: character varying
+
+      - name: shipping_method_name
+        description: >
+          The name of the shipping method in English.
+        type: character varying
+
+      - name: shipping_method_name_ar
+        description: >
+          The name of the shipping method in Arabic.
+        type: character varying
+
+      - name: pickup_option_city_id
+        description: >
+          The unique identifier for the city if the marketplace order was picked up.
+        type: integer
+
+      - name: pickup_option_city_name
+        description: >
+          The name of the city if the marketplace order was picked up, in English.
+        type: character varying
+
+      - name: pickup_option_city_name_ar
+        description: >
+          The name of the city if the marketplace order was picked up, in Arabic.
+        type: character varying
+
+      - name: shipping_address_city_id
+        description: >
+          The unique identifier for the city in the shipping address of the marketplace order.
+        type: bigint
+
+      - name: shipping_address_city_name
+        description: >
+          The name of the city in the shipping address, in English.
+        type: character varying
+
+      - name: shipping_address_city_name_ar
+        description: >
+          The name of the city in the shipping address, in Arabic.
+        type: character varying
+
+      - name: shipping_address_city_lon
+        description: >
+          The longitude of the city in the shipping address.
+        type: double precision
+
+      - name: shipping_address_city_lat
+        description: >
+          The latitude of the city in the shipping address.
+        type: double precision
+
+      - name: shipping_address_country_id
+        description: >
+          The unique identifier for the country in the shipping address.
+        type: bigint
+
+      - name: shipping_address_country_name
+        description: >
+          The name of the country in the shipping address, in English.
+        type: character varying
+
+      - name: shipping_address_country_name_ar
+        description: >
+          The name of the country in the shipping address, in Arabic.
+        type: character varying
+
+      - name: order_products_count
+        description: >
+          The total number of products in the marketplace order.
+        type: integer
+
+      - name: order_products_cost
+        description: >
+          The total cost of products in the marketplace order.
+        type: numeric
+
+      - name: order_currency_code
+        description: >
+          The currency code used for the marketplace order.
+        type: character varying
+
+      - name: store_currency_code
+        description: >
+          The currency code used by the store associated with the marketplace order.
+        type: character varying
+
+      - name: current_store_currency_code
+        description: >
+          The current currency code of the store at the time of data processing.
+        type: character varying
+
+      - name: currency_exchange_rate
+        description: >
+          The exchange rate between the order currency and a base currency.
+        type: character varying # Assuming it might be a string if it represents the rate or a historical rate reference
+
+      - name: store_currency_exchange_rate
+        description: >
+          The exchange rate between the store's original currency and a base currency.
+        type: character varying # Assuming it might be a string if it represents the rate or a historical rate reference
+
+      - name: current_currency_exchange_rate
+        description: >
+          The current exchange rate used for conversions.
+        type: double precision
+
+      - name: order_total_value
+        description: >
+          The total value of the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_total_value_converted
+        description: >
+          The total value of the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_vat_value
+        description: >
+          The value of Value Added Tax (VAT) applied to the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_vat_value_converted
+        description: >
+          The value of Value Added Tax (VAT) applied to the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_shipping_fees
+        description: >
+          The shipping fees for the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_shipping_fees_converted
+        description: >
+          The shipping fees for the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_coupon_value
+        description: >
+          The value of the coupon applied to the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_coupon_value_converted
+        description: >
+          The value of the coupon applied to the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_shipping_discount_value
+        description: >
+          The value of the shipping discount applied to the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_shipping_discount_value_converted
+        description: >
+          The value of the shipping discount applied to the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_total_value
+        description: >
+          The sub-total value of the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_sub_total_value_converted
+        description: >
+          The sub-total value of the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_value
+        description: >
+          The sub-totals value of the marketplace order (potentially including VAT) in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_value_converted
+        description: >
+          The sub-totals value of the marketplace order (potentially including VAT) converted to a standard currency.
+        type: numeric
+
+      - name: order_products_discount_value
+        description: >
+          The total discount value applied to products in the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_products_discount_value_converted
+        description: >
+          The total discount value applied to products in the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_before_vat_value
+        description: >
+          The sub-totals value of the marketplace order before VAT in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_before_vat_value_converted
+        description: >
+          The sub-totals value of the marketplace order before VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_coupon_cod_discount_value
+        description: >
+          The discount value from cash on delivery (COD) coupons in its original currency.
+        type: numeric
+
+      - name: order_coupon_cod_discount_value_converted
+        description: >
+          The discount value from cash on delivery (COD) coupons converted to a standard currency.
+        type: numeric
+
+      - name: order_free_shipping_coupon_value
+        description: >
+          The value of free shipping coupons applied to the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_free_shipping_coupon_value_converted
+        description: >
+          The value of free shipping coupons applied to the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_coupon_discount_value
+        description: >
+          The sub-totals value of the marketplace order after applying coupon discounts in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_coupon_discount_value_converted
+        description: >
+          The sub-totals value of the marketplace order after applying coupon discounts converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_products_discount_value
+        description: >
+          The sub-totals value of the marketplace order after applying product discounts in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_products_discount_value_converted
+        description: >
+          The sub-totals value of the marketplace order after applying product discounts converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_vat_value
+        description: >
+          The sub-totals value of the marketplace order after applying VAT in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_vat_value_converted
+        description: >
+          The sub-totals value of the marketplace order after applying VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_zid_cod_value
+        description: >
+          The Zid Cash on Delivery (COD) value for the marketplace order in its original currency.
+        type: numeric
+
+      - name: order_zid_cod_value_converted
+        description: >
+          The Zid Cash on Delivery (COD) value for the marketplace order converted to a standard currency.
+        type: numeric
+
+      - name: order_total_before_vat_value
+        description: >
+          The total value of the marketplace order before VAT in its original currency.
+        type: numeric
+
+      - name: order_total_before_vat_value_converted
+        description: >
+          The total value of the marketplace order before VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_source_code
+        description: >
+          The code identifying the source of the marketplace order (e.g., direct, referral).
+        type: character varying
+
+      - name: order_source_name
+        description: >
+          The name of the marketplace order source in English.
+        type: character varying
+
+      - name: order_source_name_ar
+        description: >
+          The name of the marketplace order source in Arabic.
+        type: character varying
+
+      - name: order_utm_source
+        description: >
+          The UTM source parameter associated with the marketplace order, indicating the origin of traffic.
+        type: character varying
+
+      - name: order_utm_medium
+        description: >
+          The UTM medium parameter associated with the marketplace order, indicating the marketing medium (e.g., email, CPC).
+        type: character varying
+
+      - name: order_utm_campaign
+        description: >
+          The UTM campaign parameter associated with the marketplace order, indicating the specific campaign.
+        type: character varying
+
+      - name: inventory_location_id
+        description: >
+          The unique identifier for the inventory location from which the order was fulfilled.
+        type: character varying
+
+      - name: order_extra_data
+        description: >
+          Additional unstructured data related to the order.
+        type: character varying
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__currencies
+    description: ' '
+    config:
+      tags: ['api'  ,'analytics']
+      meta:
+        dagster:
+          group: analytics
+
+  - name: api__analytics__orders_marketplace_stores
+    description: >
+      The `api__analytics__orders_marketplace_stores` table provides analytical insights
+      into orders originating from marketplace stores. This table mirrors the structure
+      of general order data but specifically focuses on transactions where the selling
+      entity is a marketplace store. It is crucial for understanding marketplace store
+      performance, customer behavior within these stores, and the financial aspects
+      of their sales. It includes:
+
+      - **Order Identification and Timestamps**: Unique identifiers for orders, creation dates,
+        and delivery durations.
+      - **Store and Customer Information**: Details about the marketplace store where the order
+        was placed, and customer identification with their joining date.
+      - **Order Status and Financials**: Current status of orders, various payment and shipping methods,
+        and a detailed breakdown of order values including VAT, shipping fees, discounts, and subtotals,
+        all in original and converted currencies.
+      - **Geographical Data**: Information about pickup and shipping addresses, including city and
+        country details with geographical coordinates.
+      - **Order Sourcing and Tracking**: Data on where the order originated (source, UTM parameters)
+        to facilitate marketing and channel analysis specific to marketplace stores.
+      - **System Metadata**: Timestamps for when the data was last updated, refreshed, and the
+        invocation ID for tracking data processing.
+
+      This table supports in-depth analysis of marketplace store order trends, revenue generation,
+      customer engagement, and logistical performance for business intelligence and strategic
+      decision-making related to marketplace operations.
+    config:
+      tags: ['api', 'analytics', 'marketplace_stores']
+      meta:
+        dagster:
+          group: analytics
+    columns:
+      - name: order_id
+        description: >
+          The unique identifier for the order placed through a marketplace store.
+        type: bigint
+        tests:
+          - unique
+          - not_null
+
+      - name: order_created_at_date
+        description: >
+          The date when the order was created.
+        type: date
+
+      - name: order_delivered_in_days
+        description: >
+          The number of days it took for the order to be delivered.
+        type: bigint
+
+      - name: order_delivered_in_hours
+        description: >
+          The number of hours it took for the order to be delivered.
+        type: bigint
+
+      - name: store_id
+        description: >
+          The unique identifier for the marketplace store where the order was placed.
+        type: integer
+
+      - name: customer_id
+        description: >
+          The unique identifier for the customer who placed the order.
+        type: integer
+
+      - name: customer_name
+        description: >
+          The name of the customer who placed the order.
+        type: character varying
+
+      - name: customer_joined_store_date
+        description: >
+          The date when the customer joined the marketplace store.
+        type: date
+
+      - name: order_status_id
+        description: >
+          The unique identifier for the status of the order.
+        type: integer
+
+      - name: order_status_name
+        description: >
+          The name of the order status in English.
+        type: character varying
+
+      - name: order_status_name_ar
+        description: >
+          The name of the order status in Arabic.
+        type: character varying
+
+      - name: payment_method_code
+        description: >
+          The code for the payment method used for the order.
+        type: character varying
+
+      - name: payment_method_name
+        description: >
+          The name of the payment method in English.
+        type: character varying
+
+      - name: payment_method_name_ar
+        description: >
+          The name of the payment method in Arabic.
+        type: character varying
+
+      - name: payment_option_code
+        description: >
+          The code for the specific payment option used.
+        type: character varying
+
+      - name: payment_option_name
+        description: >
+          The name of the payment option in English.
+        type: character varying
+
+      - name: payment_option_name_ar
+        description: >
+          The name of the payment option in Arabic.
+        type: character varying
+
+      - name: shipping_method_code
+        description: >
+          The code for the shipping method used for the order.
+        type: character varying
+
+      - name: shipping_method_name
+        description: >
+          The name of the shipping method in English.
+        type: character varying
+
+      - name: shipping_method_name_ar
+        description: >
+          The name of the shipping method in Arabic.
+        type: character varying
+
+      - name: pickup_option_city_id
+        description: >
+          The unique identifier for the city if the order was picked up.
+        type: integer
+
+      - name: pickup_option_city_name
+        description: >
+          The name of the city if the order was picked up, in English.
+        type: character varying
+
+      - name: pickup_option_city_name_ar
+        description: >
+          The name of the city if the order was picked up, in Arabic.
+        type: character varying
+
+      - name: shipping_address_city_id
+        description: >
+          The unique identifier for the city in the shipping address.
+        type: bigint
+
+      - name: shipping_address_city_name
+        description: >
+          The name of the city in the shipping address, in English.
+        type: character varying
+
+      - name: shipping_address_city_name_ar
+        description: >
+          The name of the city in the shipping address, in Arabic.
+        type: character varying
+
+      - name: shipping_address_city_lon
+        description: >
+          The longitude of the city in the shipping address.
+        type: double precision
+
+      - name: shipping_address_city_lat
+        description: >
+          The latitude of the city in the shipping address.
+        type: double precision
+
+      - name: shipping_address_country_id
+        description: >
+          The unique identifier for the country in the shipping address.
+        type: bigint
+
+      - name: shipping_address_country_name
+        description: >
+          The name of the country in the shipping address, in English.
+        type: character varying
+
+      - name: shipping_address_country_name_ar
+        description: >
+          The name of the country in the shipping address, in Arabic.
+        type: character varying
+
+      - name: order_products_count
+        description: >
+          The total number of products in the order.
+        type: integer
+
+      - name: order_currency_code
+        description: >
+          The currency code used for the order.
+        type: character varying
+
+      - name: store_currency_code
+        description: >
+          The currency code used by the marketplace store.
+        type: character varying
+
+      - name: order_total_value
+        description: >
+          The total value of the order in its original currency.
+        type: numeric
+
+      - name: order_total_value_converted
+        description: >
+          The total value of the order converted to a standard currency.
+        type: numeric
+
+      - name: order_vat_value
+        description: >
+          The value of Value Added Tax (VAT) applied to the order in its original currency.
+        type: numeric
+
+      - name: order_vat_value_converted
+        description: >
+          The value of Value Added Tax (VAT) applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_shipping_fees
+        description: >
+          The shipping fees for the order in its original currency.
+        type: numeric
+
+      - name: order_shipping_fees_converted
+        description: >
+          The shipping fees for the order converted to a standard currency.
+        type: numeric
+
+      - name: order_coupon_value
+        description: >
+          The value of the coupon applied to the order in its original currency.
+        type: numeric
+
+      - name: order_coupon_value_converted
+        description: >
+          The value of the coupon applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_shipping_discount_value
+        description: >
+          The value of the shipping discount applied to the order in its original currency.
+        type: numeric
+
+      - name: order_shipping_discount_value_converted
+        description: >
+          The value of the shipping discount applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_total_value
+        description: >
+          The sub-total value of the order in its original currency.
+        type: numeric
+
+      - name: order_sub_total_value_converted
+        description: >
+          The sub-total value of the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_value
+        description: >
+          The sub-totals value of the order (potentially including VAT) in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_value_converted
+        description: >
+          The sub-totals value of the order (potentially including VAT) converted to a standard currency.
+        type: numeric
+
+      - name: order_products_discount_value
+        description: >
+          The total discount value applied to products in the order in its original currency.
+        type: numeric
+
+      - name: order_products_discount_value_converted
+        description: >
+          The total discount value applied to products in the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_before_vat_value
+        description: >
+          The sub-totals value of the order before VAT in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_before_vat_value_converted
+        description: >
+          The sub-totals value of the order before VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_coupon_cod_discount_value
+        description: >
+          The discount value from cash on delivery (COD) coupons in its original currency.
+        type: numeric
+
+      - name: order_coupon_cod_discount_value_converted
+        description: >
+          The discount value from cash on delivery (COD) coupons converted to a standard currency.
+        type: numeric
+
+      - name: order_free_shipping_coupon_value
+        description: >
+          The value of free shipping coupons applied to the order in its original currency.
+        type: numeric
+
+      - name: order_free_shipping_coupon_value_converted
+        description: >
+          The value of free shipping coupons applied to the order converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_coupon_discount_value
+        description: >
+          The sub-totals value of the order after applying coupon discounts in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_coupon_discount_value_converted
+        description: >
+          The sub-totals value of the order after applying coupon discounts converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_products_discount_value
+        description: >
+          The sub-totals value of the order after applying product discounts in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_products_discount_value_converted
+        description: >
+          The sub-totals value of the order after applying product discounts converted to a standard currency.
+        type: numeric
+
+      - name: order_sub_totals_after_vat_value
+        description: >
+          The sub-totals value of the order after applying VAT in its original currency.
+        type: numeric
+
+      - name: order_sub_totals_after_vat_value_converted
+        description: >
+          The sub-totals value of the order after applying VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_zid_cod_value
+        description: >
+          The Zid Cash on Delivery (COD) value for the order in its original currency.
+        type: numeric
+
+      - name: order_zid_cod_value_converted
+        description: >
+          The Zid Cash on Delivery (COD) value for the order converted to a standard currency.
+        type: numeric
+
+      - name: order_total_before_vat_value
+        description: >
+          The total value of the order before VAT in its original currency.
+        type: numeric
+
+      - name: order_total_before_vat_value_converted
+        description: >
+          The total value of the order before VAT converted to a standard currency.
+        type: numeric
+
+      - name: order_source_code
+        description: >
+          The code identifying the source of the order (e.g., direct, referral).
+        type: character varying
+
+      - name: order_source_name
+        description: >
+          The name of the order source in English.
+        type: character varying
+
+      - name: order_source_name_ar
+        description: >
+          The name of the order source in Arabic.
+        type: character varying
+
+      - name: order_utm_source
+        description: >
+          The UTM source parameter associated with the order, indicating the origin of traffic.
+        type: character varying
+
+      - name: order_utm_medium
+        description: >
+          The UTM medium parameter associated with the order, indicating the marketing medium (e.g., email, CPC).
+        type: character varying
+
+      - name: order_utm_campaign
+        description: >
+          The UTM campaign parameter associated with the order, indicating the specific campaign.
+        type: character varying
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
+
+      - name: run_started_at_utc
+        description: >
+          The UTC timestamp when the data processing run for this record started.
+        type: timestamp without time zone
+
+      - name: invocation_id
+        description: >
+          A unique identifier for the data processing invocation.
+        type: character varying
+
+  - name: api__analytics__summery
+    description: >
+      The `api__analytics__summery` table provides a daily aggregated summary of key
+      performance indicators (KPIs) across various operational areas for each store.
+      This comprehensive overview is crucial for high-level business monitoring,
+      identifying trends, and evaluating overall store performance. It includes metrics on:
+
+      - **Order Performance**: Total order value and count, new orders, completed orders,
+        and detailed counts and values for cancelled and reversed orders.
+      - **Customer Engagement**: Website visits, store ratings (total and new), and
+        customer-specific order counts and values.
+      - **Product and Discount Insights**: Total product count in orders, total discounted
+        amounts, revenue from coupons and automated discounts, and specific breakdowns
+        of various discount types (coupon, product, COD, shipping, free shipping).
+      - **Cart Conversion**: Counts and values related to abandoned and completed shopping carts.
+      - **Financials**: Breakdowns of sales by POS vs. non-POS, shipping fees, total VAT,
+        and detailed transaction metrics including settled, unsettled, successful,
+        failed, and refunded transactions and their volumes.
+      - **Order Lifecycle Timings**: Aggregated durations for key order status transitions
+        (e.g., created to delivered, preparing to ready).
+      - **System Metadata**: Timestamp for the last update.
+
+      This table serves as a daily dashboard for business intelligence, allowing for
+      quick assessment of store health, sales trends, operational efficiency, and financial flows.
+    config:
+      tags: ['api', 'analytics', 'summary']
+      meta:
+        dagster:
+          group: analytics
+    tests:  
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["store_id", "activity_date"]
+          ignore_row_if: "any_value_is_missing"
+    columns:
+      - name: store_id
+        description: >
+          The unique identifier for the store.
+        type: bigint
+
+      - name: activity_date
+        description: >
+          The date for which the summary metrics are reported.
+        type: date
+        # Individual tests for activity_date are removed as it's part of the compound unique test above.
+
+      - name: total_orders_value
+        description: >
+          The total monetary value of all orders on this date.
+        type: numeric
+
+      - name: total_order_count
+        description: >
+          The total number of orders on this date.
+        type: bigint
+
+      - name: new_orders_count
+        description: >
+          The number of newly created orders on this date.
+        type: bigint
+
+      - name: visits_count
+        description: >
+          The total number of store visits on this date.
+        type: bigint
+
+      - name: orders_completed
+        description: >
+          The number of orders that reached a completed status on this date.
+        type: bigint
+
+      - name: store_rating_count
+        description: >
+          The total count of ratings received for the store on this date.
+        type: bigint
+
+      - name: new_store_rating
+        description: >
+          The number of new store ratings submitted on this date.
+        type: bigint
+
+      - name: customer_order_count
+        description: >
+          The count of distinct customer orders on this date.
+        type: bigint
+
+      - name: customer_orders_total_value_converted
+        description: >
+          The total monetary value of customer orders on this date, converted to a standard currency.
+        type: numeric
+
+      - name: total_order_products_count
+        description: >
+          The total number of individual products included in all orders on this date.
+        type: bigint
+
+      - name: num_of_usage
+        description: >
+          Generic count of usage events, specific context may vary.
+        type: bigint
+
+      - name: discounted_price
+        description: >
+          The total monetary amount discounted from product prices on this date.
+        type: numeric
+
+      - name: total_coupons_revenue
+        description: >
+          The total revenue generated from coupon redemptions on this date.
+        type: numeric
+
+      - name: count_customers
+        description: >
+          The total count of distinct customers who placed orders or interacted on this date.
+        type: bigint
+
+      - name: discount_sale
+        description: >
+          The total sales value influenced by discounts on this date.
+        type: numeric
+
+      - name: orders_from_automated_discounts_count
+        description: >
+          The number of orders where automated discount rules were applied on this date.
+        type: bigint
+
+      - name: count_cart
+        description: >
+          The total number of shopping carts created on this date.
+        type: bigint
+
+      - name: num_of_completed_carts
+        description: >
+          The number of shopping carts that were completed (converted to orders) on this date.
+        type: bigint
+
+      - name: carts_value
+        description: >
+          The total monetary value of all shopping carts (including abandoned) on this date.
+        type: numeric
+
+      - name: completed_carts_sale
+        description: >
+          The sales value generated from completed carts on this date.
+        type: numeric
+
+      - name: total_discount_revenue
+        description: >
+          The total revenue reduction due to all types of discounts on this date.
+        type: numeric
+
+      - name: count_cancelled_orders
+        description: >
+          The number of orders that were cancelled on this date.
+        type: bigint
+
+      - name: total_cancelled_orders
+        description: >
+          The total monetary value of orders that were cancelled on this date.
+        type: numeric
+
+      - name: count_reversed_orders
+        description: >
+          The number of orders that were reversed (e.g., returns) on this date.
+        type: bigint
+
+      - name: total_reversed_orders
+        description: >
+          The total monetary value of orders that were reversed on this date.
+        type: numeric
+
+      - name: coupon_discount
+        description: >
+          The total monetary value of discounts applied via coupons on this date.
+        type: numeric
+
+      - name: product_discount
+        description: >
+          The total monetary value of discounts applied directly to products on this date.
+        type: numeric
+
+      - name: coupon_cod_discount
+        description: >
+          The total monetary value of cash-on-delivery (COD) discounts applied via coupons on this date.
+        type: numeric
+
+      - name: shipping_discount
+        description: >
+          The total monetary value of discounts applied to shipping fees on this date.
+        type: numeric
+
+      - name: free_shipping_coupon
+        description: >
+          The total monetary value of free shipping offered via coupons on this date.
+        type: numeric
+
+      - name: shipping_fees
+        description: >
+          The total shipping fees collected on this date.
+        type: numeric
+
+      - name: total_vat
+        description: >
+          The total Value Added Tax (VAT) collected on this date.
+        type: numeric
+
+      - name: pos_sale
+        description: >
+          The total sales value generated from Point of Sale (POS) transactions on this date.
+        type: numeric
+
+      - name: pos_orders
+        description: >
+          The number of orders placed via Point of Sale (POS) on this date.
+        type: bigint
+
+      - name: number_of_orders_cd
+        description: >
+          The number of orders whose status changed to 'Created' on this date.
+        type: bigint
+
+      - name: number_of_orders_pr
+        description: >
+          The number of orders whose status changed to 'Preparing' on this date.
+        type: bigint
+
+      - name: number_of_orders_ip
+        description: >
+          The number of orders whose status changed to 'In Progress' on this date.
+        type: bigint
+
+      - name: number_of_orders_id
+        description: >
+          The number of orders whose status changed to 'In Delivery' on this date.
+        type: bigint
+
+      - name: number_of_orders_rr
+        description: >
+          The number of orders whose status changed to 'Returned/Reversed' on this date.
+        type: bigint
+
+      - name: sum_created_at_to_delivered_mins
+        description: >
+          The total sum of minutes from order creation to delivery for orders delivered on this date.
+        type: double precision
+
+      - name: sum_preparing_to_ready_mins
+        description: >
+          The total sum of minutes from 'Preparing' to 'Ready for Delivery' for orders processed on this date.
+        type: double precision
+
+      - name: sum_preparing_to_in_delivery_mins
+        description: >
+          The total sum of minutes from 'Preparing' to 'In Delivery' for orders processed on this date.
+        type: double precision
+
+      - name: sum_in_delivery_to_delivered_mins
+        description: >
+          The total sum of minutes from 'In Delivery' to 'Delivered' for orders delivered on this date.
+        type: double precision
+
+      - name: sum_processing_reverse_to_reversed_mins
+        description: >
+          The total sum of minutes from 'Processing Reverse' to 'Reversed' for orders reversed on this date.
+        type: double precision
+
+      - name: product_sale
+        description: >
+          The total sales value of products (before discounts or VAT, for general product sales) on this date.
+        type: numeric
+
+      - name: total_discount
+        description: >
+          The overall total monetary value of all discounts applied on this date.
+        type: numeric
+
+      - name: total_shipping
+        description: >
+          The overall total monetary value of all shipping charges on this date.
+        type: numeric
+
+      - name: total_cod
+        description: >
+          The overall total monetary value of all Cash on Delivery (COD) amounts on this date.
+        type: numeric
+
+      - name: non_pos_sale
+        description: >
+          The total sales value generated from non-Point of Sale (POS) transactions on this date.
+        type: numeric
+
+      - name: non_pos_orders
+        description: >
+          The number of orders placed via non-Point of Sale (POS) channels on this date.
+        type: bigint
+
+      - name: settled_transaction_volume
+        description: >
+          The total monetary volume of transactions that have been settled on this date.
+        type: numeric
+
+      - name: unsettled_transactions_counts
+        description: >
+          The count of transactions that are currently unsettled on this date.
+        type: bigint
+
+      - name: successful_transaction
+        description: >
+          The count of successful transactions (payments) on this date.
+        type: bigint
+
+      - name: refunded_sales_volume
+        description: >
+          The total monetary volume of sales that were refunded on this date.
+        type: numeric
+
+      - name: successful_sales_volume
+        description: >
+          The total monetary volume of successful sales on this date.
+        type: numeric
+
+      - name: successful_transaction_count
+        description: >
+          The total count of successful transactions on this date.
+        type: bigint
+
+      - name: failed_transaction_count
+        description: >
+          The total count of failed transactions on this date.
+        type: bigint
+
+      - name: refunded_transaction_count
+        description: >
+          The total count of refunded transactions on this date.
+        type: bigint
+
+      - name: settled_transactions_count
+        description: >
+          The total count of transactions that have been settled on this date.
+        type: bigint
+
+      - name: total_settled_amount
+        description: >
+          The total monetary amount from all settled transactions on this date.
+        type: numeric
+
+      - name: last_updated_at_utc
+        description: >
+          The UTC timestamp when the record was last updated.
+        type: timestamp without time zone
